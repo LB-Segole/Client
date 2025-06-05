@@ -71,9 +71,6 @@ const App = () => {
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
-
-              {/* AI Agent page */}
-              <Route path="/ai-agent"      element={<AIAgent />} />
               
               {/* Protected routes */}
               <Route
@@ -87,6 +84,7 @@ const App = () => {
                 <Route path="/campaigns" element={<Campaigns />} />
                 <Route path="/call-history" element={<CallHistory />} />
                 <Route path="/call-center" element={<CallCenter />} />
+                <Route path="/ai-agent" element={<AIAgent />} />
               </Route>
 
               {/* 404 route */}

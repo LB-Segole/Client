@@ -31,6 +31,7 @@ const MainLayout = () => {
     { path: '/call-history', name: 'Call History', icon: <Phone className="h-5 w-5" /> },
     { path: '/call-center', name: 'Call Center', icon: <Phone className="h-5 w-5" /> },
     { path: '/settings', name: 'Settings', icon: <Settings className="h-5 w-5" /> },
+    { path: '/ai-agent', name: 'AI Agent', icon: <ListChecks className="h-5 w-5" /> },
   ];
 
   return (

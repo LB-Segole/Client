@@ -124,13 +124,6 @@ const Navbar = () => {
               >
                 Blog
               </Link>
-              <Link
-                to="/ai-agent"
-                className="text-gray-300 hover:text-white py-2 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                AI Agent
-              </Link>
 
               <div className="pt-4 border-t border-gray-700 mt-4">
                 <Button
