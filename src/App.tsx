@@ -28,6 +28,7 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsOfService from "@/pages/TermsOfService";
 import CookiePolicy from "@/pages/CookiePolicy";
 import NotFound from "@/pages/NotFound";
+import AIAgent from "@/pages/AIAgent";
 
 // Components
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -71,6 +72,9 @@ const App = () => {
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
 
+              {/* AI Agent page */}
+              <Route path="/ai-agent"      element={<AIAgent />} />
+              
               {/* Protected routes */}
               <Route
                 element={
