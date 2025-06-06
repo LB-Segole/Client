@@ -25,7 +25,7 @@ const assistants: Assistant[] = [
     voiceStyle: "Bold",
     defaultHelloMessage:
       "Charismatic AI assistant. I’m here to help you connect with your customers in a confident and engaging way. Let’s make this conversation memorable!",
-    audioSample: "https://YOUR_STATIC_HOST/gemma-sample.mp3",
+    audioSample: "/preview_gemma.mp3",
   },
   {
     id: "kat",
@@ -34,7 +34,7 @@ const assistants: Assistant[] = [
     voiceStyle: "Calm",
     defaultHelloMessage:
       "Hi there! I’m Kat, your friendly and calm AI assistant. I’m here to provide you with thoughtful and helpful support. How can I assist you today?",
-    audioSample: "https://YOUR_STATIC_HOST/kat-sample.mp3",
+    audioSample: "/preview_kat.mp3",
   },
   {
     id: "mark",
@@ -43,7 +43,7 @@ const assistants: Assistant[] = [
     voiceStyle: "Formal",
     defaultHelloMessage:
       "Good day. I am Mark, your professional AI assistant. I will provide you with direct and focused assistance. How may I help you today?",
-    audioSample: "https://YOUR_STATIC_HOST/mark-sample.mp3",
+    audioSample: "/preview_mark.mp3",
   },
 ];
 
