@@ -1,9 +1,12 @@
-import React, { useState } from "react";
+// src/pages/AIAgent.tsx
+
+import React, { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Play, Pause, PhoneCall } from "lucide-react";
+import { startDemoCall } from "@/services/call.service";
 
 interface Assistant {
   id: string;
@@ -11,54 +14,70 @@ interface Assistant {
   personality: string;
   voiceStyle: string;
   defaultHelloMessage: string;
-  audioSample: string;
+  audioSample: string; // URL to an mp3/ogg sample
 }
 
-const AIAgent = () => {
-  const [assistants] = useState<Assistant[]>([
-    {
-      id: "gemma",
-      name: "Gemma",
-      personality: "Confident, Charismatic, Witty, Bold",
-      voiceStyle: "Bold",
-      defaultHelloMessage:
-        "Hello! I'm Gemma, your bold and charismatic AI assistant. I'm here to help you connect with your customers in a confident and engaging way. Let's make this conversation memorable!",
-      audioSample: "/audio/gemma-sample.mp3",
-    },
-    {
-      id: "kat",
-      name: "Kat",
-      personality: "Smart, Friendly, Demure, Calm",
-      voiceStyle: "Calm",
-      defaultHelloMessage:
-        "Hi there! I'm Kat, your friendly and calm AI assistant. I'm here to provide you with thoughtful and helpful support. How can I assist you today?",
-      audioSample: "/audio/kat-sample.mp3",
-    },
-    {
-      id: "mark",
-      name: "Mark",
-      personality: "Formal, Direct, Focused, Strict",
-      voiceStyle: "Formal",
-      defaultHelloMessage:
-        "Good day. I am Mark, your professional AI assistant. I will provide you with direct and focused assistance. How may I help you today?",
-      audioSample: "/audio/mark-sample.mp3",
-    },
-  ]);
+const assistants: Assistant[] = [
+  {
+    id: "gemma",
+    name: "Gemma",
+    personality: "Confident, Charismatic, Bold",
+    voiceStyle: "Bold",
+    defaultHelloMessage:
+      "Charismatic AI assistant. I’m here to help you connect with your customers in a confident and engaging way. Let’s make this conversation memorable!",
+    audioSample: "https://YOUR_STATIC_HOST/gemma-sample.mp3",
+  },
+  {
+    id: "kat",
+    name: "Kat",
+    personality: "Calm, Supportive, Thoughtful",
+    voiceStyle: "Calm",
+    defaultHelloMessage:
+      "Hi there! I’m Kat, your friendly and calm AI assistant. I’m here to provide you with thoughtful and helpful support. How can I assist you today?",
+    audioSample: "https://YOUR_STATIC_HOST/kat-sample.mp3",
+  },
+  {
+    id: "mark",
+    name: "Mark",
+    personality: "Formal, Direct, Focused, Strict",
+    voiceStyle: "Formal",
+    defaultHelloMessage:
+      "Good day. I am Mark, your professional AI assistant. I will provide you with direct and focused assistance. How may I help you today?",
+    audioSample: "https://YOUR_STATIC_HOST/mark-sample.mp3",
+  },
+];
 
-  const [helloMessages, setHelloMessages] = useState<{ [key: string]: string }>({
-    gemma: assistants[0].defaultHelloMessage,
-    kat: assistants[1].defaultHelloMessage,
-    mark: assistants[2].defaultHelloMessage,
-  });
+const AIAgent: React.FC = () => {
+  // Track which audio is playing (by assistant.id)
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  // Keep a reference to the HTMLAudioElement so we can pause it if needed
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [activeStates, setActiveStates] = useState<{ [key: string]: boolean }>({
-    gemma: true,
+  // Track whether each assistant is “active” (true/false)
+  const [activeStates, setActiveStates] = useState<Record<string, boolean>>({
+    gemma: false,
     kat: false,
     mark: false,
   });
 
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  // Keep track of each assistant's custom “Hello Message”
+  const [helloMessages, setHelloMessages] = useState<Record<string, string>>({
+    gemma: assistants.find((a) => a.id === "gemma")!.defaultHelloMessage,
+    kat: assistants.find((a) => a.id === "kat")!.defaultHelloMessage,
+    mark: assistants.find((a) => a.id === "mark")!.defaultHelloMessage,
+  });
 
+  /** Toggle “active” on/off for a given assistant */
+  const handleActiveToggle = (assistantId: string) => {
+    setActiveStates((prev) => ({
+      gemma: false,
+      kat: false,
+      mark: false,
+      [assistantId]: !prev[assistantId],
+    }));
+  };
+
+  /** User edits the Hello Message in the textarea */
   const handleHelloMessageChange = (assistantId: string, message: string) => {
     setHelloMessages((prev) => ({
       ...prev,
@@ -66,81 +85,123 @@ const AIAgent = () => {
     }));
   };
 
-  const handleActiveToggle = (assistantId: string) => {
-    setActiveStates({
-      gemma: false,
-      kat: false,
-      mark: false,
-      [assistantId]: !activeStates[assistantId],
-    });
-  };
-
-  const handlePlaySample = (assistantId: string, audioSample: string) => {
-    if (playingAudio === assistantId) {
-      setPlayingAudio(null);
+  /** PLAY / PAUSE the sample audio for a given assistant */
+  const handlePlaySample = (assistantId: string, audioUrl: string) => {
+    // If we are already playing this assistant's audio, pause it.
+    if (playingAudioId === assistantId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      audioRef.current = null;
+      setPlayingAudioId(null);
       return;
     }
 
-    setPlayingAudio(assistantId);
-    setTimeout(() => {
-      setPlayingAudio(null);
-    }, 3000);
-  };
-
-  const handleSaveConfig = async () => {
-    const activeAssistant = assistants.find((a) => activeStates[a.id]);
-    if (!activeAssistant) {
-      alert("Please activate an assistant first.");
-      return;
+    // Otherwise, start playing the new sample.
+    // If another sample was playing, pause that first:
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
 
-    const configPayload = {
-      openai_model: "gpt-4",
-      temperature: 0.7,
-      max_tokens: 500,
-      system_prompt: `You are ${activeAssistant.name}, ${activeAssistant.personality}`,
-      first_message_mode: "assistant_custom",
-      first_message: helloMessages[activeAssistant.id],
-      deepgram_model: "nova",
-      deepgram_voice: activeAssistant.voiceStyle.toLowerCase(),
-      voice_name: activeAssistant.name,
-      voice_gender: activeAssistant.voiceStyle === "Formal" ? "male" : "female",
-    };
-
-    try {
-      const res = await fetch("/voice/config", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(configPayload),
+    // Create a brand new Audio object, play it, and store it in the ref.
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio
+      .play()
+      .then(() => {
+        setPlayingAudioId(assistantId);
+      })
+      .catch((err) => {
+        console.error("Error playing audio sample:", err);
+        setPlayingAudioId(null);
+        audioRef.current = null;
       });
 
-      if (!res.ok) throw new Error("Failed to save config");
-
-      alert("Configuration saved successfully.");
-    } catch (err) {
-      alert("Error saving configuration.");
-      console.error(err);
-    }
+    // When the audio ends, clear the state so the Play button reverts:
+    audio.onended = () => {
+      setPlayingAudioId(null);
+      audioRef.current = null;
+    };
   };
 
+  /** SAVE the configuration (Hello Messages, active toggles) to the backend.
+   *  (We assume you have a /voice/configure endpoint that picks up runtime_config.) */
+  const handleSaveConfig = () => {
+    // Build the payload:
+    const configPayload = {
+      gemma: {
+        first_message: helloMessages["gemma"],
+        voice_name: "gemma_voice_id_or_token", // replace with your actual ElevenLabs voice name
+        second_message:
+          "Hello yourself (Gemma) — “Second message if user says Hello.”",
+        closing_message: "Thanks for calling. Goodbye.",
+      },
+      kat: {
+        first_message: helloMessages["kat"],
+        voice_name: "kat_voice_id_or_token",
+        second_message: "If user says Hello, Kat responds …",
+        closing_message: "Thank you. Goodbye.",
+      },
+      mark: {
+        first_message: helloMessages["mark"],
+        voice_name: "mark_voice_id_or_token",
+        second_message: "If user says Hello, Mark responds …",
+        closing_message: "Goodbye.",
+      },
+    };
+
+    // Send a POST to /voice/configure (Flask side)
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/voice/configure`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(configPayload),
+    })
+      .then((res) => {
+        if (res.ok) {
+          alert("Configuration saved successfully.");
+        } else {
+          alert("Failed to save configuration.");
+        }
+      })
+      .catch((err) => {
+        console.error("Error saving config:", err);
+        alert("Error saving configuration.");
+      });
+  };
+
+  /** START a Test Call via SignalWire */
   const handleTestCall = () => {
-    fetch("/voice/test_call", { method: "POST" })
-      .then((res) => (res.ok ? alert("Test call started.") : alert("Failed to start test call.")))
-      .catch(() => alert("Error starting test call."));
+    // We send our single-number array to `startDemoCall(...)`.
+    // It uses `/voice/test_call` under the hood.
+    startDemoCall([import.meta.env.VITE_APP_PHONE_NUMBER as string])
+      .then((json) => {
+        // json should look like: { status: "Call initiated", sid: "XYZ" }
+        alert("Test call started! SID=" + json.sid);
+      })
+      .catch((err) => {
+        console.error("Error initiating test call:", err);
+        alert("Failed to start test call. See console for details.");
+      });
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
+    <div className="container mx-auto p-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-2">AI Agent Configuration</h1>
-        <p className="text-gray-600">Choose and configure your AI voice assistant</p>
+        <p className="text-gray-600">
+          Choose and configure your AI voice assistant
+        </p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
         {assistants.map((assistant) => (
-          <Card key={assistant.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <Card
+            key={assistant.id}
+            className="shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between">
                 <span className="text-xl font-bold">{assistant.name}</span>
@@ -149,39 +210,44 @@ const AIAgent = () => {
                   onCheckedChange={() => handleActiveToggle(assistant.id)}
                 />
               </CardTitle>
-              <p className="text-sm text-gray-600 italic">{assistant.personality}</p>
+              <p className="text-sm text-gray-600 italic">
+                {assistant.personality}
+              </p>
             </CardHeader>
 
             <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Voice Style</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Voice Style
+                </label>
                 <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-700">
                   {assistant.voiceStyle}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hello Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hello Message
+                </label>
                 <Textarea
                   value={helloMessages[assistant.id]}
-                  onChange={(e) => handleHelloMessageChange(assistant.id, e.target.value)}
-                  placeholder="Enter the first message this assistant will say..."
-                  className="min-h-[100px] resize-none"
+                  onChange={(e) =>
+                    handleHelloMessageChange(assistant.id, e.currentTarget.value)
+                  }
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Voice Preview</label>
+              <div className="flex items-center justify-between pt-2 border-t">
                 <Button
-                  onClick={() => handlePlaySample(assistant.id, assistant.audioSample)}
-                  variant="outline"
-                  className="w-full"
-                  disabled={playingAudio !== null && playingAudio !== assistant.id}
+                  className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                  onClick={() =>
+                    handlePlaySample(assistant.id, assistant.audioSample)
+                  }
                 >
-                  {playingAudio === assistant.id ? (
+                  {playingAudioId === assistant.id ? (
                     <>
                       <Pause className="w-4 h-4 mr-2" />
-                      Playing...
+                      Pause
                     </>
                   ) : (
                     <>
@@ -190,13 +256,13 @@ const AIAgent = () => {
                     </>
                   )}
                 </Button>
-              </div>
 
-              <div className="flex items-center justify-between pt-2 border-t">
                 <span className="text-xs text-gray-500">Status:</span>
                 <span
                   className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    activeStates[assistant.id] ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+                    activeStates[assistant.id]
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {activeStates[assistant.id] ? "Active" : "Inactive"}
@@ -207,12 +273,18 @@ const AIAgent = () => {
         ))}
       </div>
 
-      <div className="text-center pt-6 space-x-4">
-        <Button className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveConfig}>
+      <div className="flex justify-center mt-8 space-x-4">
+        <Button
+          className="px-8 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md"
+          onClick={handleSaveConfig}
+        >
           Save Configuration
         </Button>
 
-        <Button className="px-8 py-2 bg-green-600 hover:bg-green-700 text-white" onClick={handleTestCall}>
+        <Button
+          className="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center"
+          onClick={handleTestCall}
+        >
           <PhoneCall className="w-4 h-4 mr-2 inline-block" />
           Start Test Call
         </Button>
