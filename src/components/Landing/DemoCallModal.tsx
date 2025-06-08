@@ -53,7 +53,7 @@ const DemoCallModal: React.FC<DemoCallModalProps> = ({ isOpen, onClose }) => {
         setPhoneNumbers([""]);
         setMessage("");
       }, 4000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setStatus("error");
       setMessage("❌ Failed to initiate calls. Please try again.");

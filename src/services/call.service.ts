@@ -1,8 +1,6 @@
-// src/services/call.service.ts
-
 export async function startDemoCall(toNumbers: string[]) {
   const response = await fetch(
-    `${import.meta.env.VITE_BACKEND_URL}/voice/test_call`,
+    `${import.meta.env.VITE_BACKEND_URL}/voice/outbound`,
     {
       method: "POST",
       headers: {

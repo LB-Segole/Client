@@ -1,121 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Play, Pause, Square, Mic, MicOff } from 'lucide-react';
-import CallVisualization from '@/components/CallCenter/CallVisualization';
-import CampaignForm from '@/components/CallCenter/CampaignForm';
-import ContactUploader from '@/components/CallCenter/ContactUploader';
+import React, { useEffect, useRef, useState } from 'react';
 
-type CallStatus = 'idle' | 'calling' | 'connected' | 'completed';
+const BACKEND_WS_URL = import.meta.env.VITE_BACKEND_WS_URL || 'wss://web-production-4506.up.railway.app/ws/ai-stream';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://web-production-4506.up.railway.app';
 
-const CallCenter = () => {
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [callStatus, setCallStatus] = useState<CallStatus>('idle');
-  const [currentContact, setCurrentContact] = useState('');
-  const [callDuration, setCallDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
+export default function CallCenter() {
+  const [connected, setConnected] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const ws = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceNode = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorNode = useRef<AudioWorkletNode | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (callStatus === 'calling' || callStatus === 'connected') {
-      interval = setInterval(() => {
-        setCallDuration(prev => prev + 1);
-      }, 1000);
+    return () => stopAudio();
+  }, []);
+
+  const startAudio = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const audioCtx = new AudioContext();
+    audioCtxRef.current = audioCtx;
+
+    await audioCtx.audioWorklet.addModule('/audio/processor.js');
+    sourceNode.current = audioCtx.createMediaStreamSource(stream);
+    processorNode.current = new AudioWorkletNode(audioCtx, 'mic-processor');
+
+    processorNode.current.port.onmessage = (event) => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(event.data);
+      }
+    };
+
+    sourceNode.current.connect(processorNode.current);
+    processorNode.current.connect(audioCtx.destination);
+  };
+
+  const startCall = async () => {
+    try {
+      setCalling(true);
+
+      // Step 1: Trigger actual phone call
+      const res = await fetch(`${BACKEND_URL}/voice/outbound`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: import.meta.env.VITE_TO_PHONE || '+17193017849',
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Call failed.');
+      }
+
+      // Step 2: Start WebSocket audio stream
+      ws.current = new WebSocket(BACKEND_WS_URL);
+      ws.current.binaryType = 'arraybuffer';
+
+      ws.current.onopen = () => {
+        setConnected(true);
+        startAudio();
+      };
+
+      ws.current.onmessage = (event) => {
+        playTTS(event.data);
+      };
+
+      ws.current.onclose = () => {
+        setConnected(false);
+        stopAudio();
+      };
+
+    } catch (err) {
+      console.error('Call error:', err);
+      alert('Failed to start call: ' + err.message);
+    } finally {
+      setCalling(false);
     }
-    return () => clearInterval(interval);
-  }, [callStatus]);
-
-  const startCall = () => {
-    setIsCallActive(true);
-    setCallStatus('calling');
-    setCurrentContact('+1-555-0123');
-    setCallDuration(0);
-    
-    // Simulate call connection after 3 seconds
-    setTimeout(() => {
-      setCallStatus('connected');
-    }, 3000);
   };
 
-  const endCall = () => {
-    setIsCallActive(false);
-    setCallStatus('completed');
-    setTimeout(() => {
-      setCallStatus('idle');
-      setCallDuration(0);
-    }, 2000);
+  const stopAudio = () => {
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.close();
+    }
   };
 
-  const toggleMute = () => {
-    setIsMuted(prev => !prev);
-  };
+  const playTTS = (buffer: ArrayBuffer) => {
+    const audioCtx = audioCtxRef.current;
+    if (!audioCtx) return;
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    audioCtx.decodeAudioData(buffer.slice(0), (decodedData) => {
+      const source = audioCtx.createBufferSource();
+      source.buffer = decodedData;
+      source.connect(audioCtx.destination);
+      source.start();
+    });
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">Call Center</h1>
-        <p className="text-gray-600">Manage your AI-powered calling campaigns</p>
-      </div>
-
-      {/* Call Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone size={20} />
-            Live Call Controls
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">Status: <span className="font-medium capitalize">{callStatus}</span></p>
-              {currentContact && (
-                <p className="text-sm text-gray-600">Contact: <span className="font-medium">{currentContact}</span></p>
-              )}
-              {callDuration > 0 && (
-                <p className="text-sm text-gray-600">Duration: <span className="font-medium">{formatDuration(callDuration)}</span></p>
-              )}
-            </div>
-            
-            <div className="flex gap-2">
-              {!isCallActive ? (
-                <Button onClick={startCall} className="bg-green-600 hover:bg-green-700">
-                  <Play size={16} className="mr-2" />
-                  Start Call
-                </Button>
-              ) : (
-                <>
-                  <Button onClick={toggleMute} variant="outline" className={isMuted ? 'bg-red-100' : ''}>
-                    {isMuted ? <MicOff size={16} className="mr-2" /> : <Mic size={16} className="mr-2" />}
-                    {isMuted ? 'Unmute' : 'Mute'}
-                  </Button>
-                  <Button onClick={endCall} variant="destructive">
-                    <Square size={16} className="mr-2" />
-                    End Call
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Call Visualization */}
-      {isCallActive && <CallVisualization callStatus={callStatus} isMuted={isMuted} />}
-
-      {/* Campaign Management */}
-      <div className="grid md:grid-cols-2 gap-8">
-        <CampaignForm />
-        <ContactUploader />
-      </div>
+    <div className="p-8">
+      <h1 className="text-2xl mb-4">Live AI Call Center</h1>
+      <button
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+        onClick={startCall}
+        disabled={calling || connected}
+      >
+        {calling ? 'Calling...' : connected ? 'Connected' : 'Start Call'}
+      </button>
     </div>
   );
-};
-
-export default CallCenter;
+}
